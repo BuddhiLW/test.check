@@ -9,7 +9,8 @@
 
 (ns clojure.test.check.clojure-test
   (:require #?(:clj  [clojure.test :as ct]
-               :cljs [cljs.test :as ct :include-macros true])
+               :cljs [cljs.test :as ct :include-macros true]
+               :cljrs [clojure.test :as ct])
             [clojure.test.check :as tc]
             [clojure.test.check.clojure-test.assertions]
             [clojure.test.check.impl :refer [get-current-time-millis]])
@@ -30,7 +31,8 @@
   (case type
     :complete
     (let [testing-vars #?(:clj ct/*testing-vars*
-                          :cljs (:testing-vars ct/*current-env*))
+                          :cljs (:testing-vars ct/*current-env*)
+                          :cljrs ct/*testing-vars*)
           params       (merge (select-keys args [:result :num-tests :seed
                                                  :time-elapsed-ms])
                               (when (seq testing-vars)
@@ -133,7 +135,8 @@
 
 (defn with-test-out* [f]
   #?(:clj  (ct/with-test-out (f))
-     :cljs (f)))
+     :cljs (f)
+     :cljrs (f)))
 
 (defn trial-report-periodic
   "Intended to be bound as the value of `*report-trials*`; will emit a verbose
@@ -165,7 +168,10 @@
   report shrunk results. Defaults to true."
   true)
 
-(when #?(:clj true :cljs (not (and *ns* (re-matches #".*\$macros" (name (ns-name *ns*))))))
+;; cljrs: clojure.test/report is a multimethod but cljrs has no
+;; get-method / MultiFn class yet, so the trial/shrinking report
+;; methods are not installed there.
+(when #?(:clj true :cljs (not (and *ns* (re-matches #".*\$macros" (name (ns-name *ns*))))) :cljrs false)
   ;; This check accomodates a number of tools that rebind ct/report
   ;; to be a regular function instead of a multimethod, and may do
   ;; so before this code is loaded (see TCHECK-125)
