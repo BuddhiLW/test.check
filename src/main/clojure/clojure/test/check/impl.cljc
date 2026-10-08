@@ -11,4 +11,5 @@
 
 (defn get-current-time-millis []
   #?(:clj  (System/currentTimeMillis)
-     :cljs (.valueOf (js/Date.))))
+     :cljs (.valueOf (js/Date.))
+     :cljrs (System/currentTimeMillis)))

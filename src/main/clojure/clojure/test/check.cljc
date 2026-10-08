@@ -52,7 +52,8 @@
                    e
                    (ex-info "Non-Error object thrown in test"
                             {}
-                            e)))
+                            e))
+           :cljrs e)
         (results/pass? result)))
     result))
 

@@ -22,7 +22,7 @@
 
 (defn ^:private exception?
   [x]
-  (instance? #?(:clj Throwable :cljs js/Error) x))
+  (instance? #?(:clj Throwable :cljs js/Error :cljrs Exception) x))
 
 (defn ^:private apply-gen
   [function]
@@ -36,7 +36,7 @@
                        (throw ret)
                        ret))
                    #?(:clj (catch java.lang.ThreadDeath t (throw t)))
-                   (catch #?(:clj Throwable :cljs :default) ex
+                   (catch #?(:clj Throwable :cljs :default :cljrs :default) ex
                      (->ErrorResult ex)))]
       {:result result
        :function function
