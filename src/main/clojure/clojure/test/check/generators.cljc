@@ -1142,7 +1142,7 @@
   [x exp]
   #?(:clj (Math/scalb ^double x ^int exp)
      :cljs (* x (.pow js/Math 2 exp))
-     :cljrs (Math/scalb (double x) (int exp))))
+     :cljrs (Math/scalb (core/double x) (core/int exp))))
 
 (defn ^:private fifty-two-bit-reverse
   "Bit-reverses an integer in the range [0, 2^52)."
@@ -1191,7 +1191,7 @@
                 :else res)))
 
       :cljrs
-      (Math/getExponent (double x))))
+      (Math/getExponent (core/double x))))
 
 (defn ^:private double-exp-and-sign
   "Generates [exp sign], where exp is in [-1023, 1023] and sign is 1
