@@ -9,7 +9,8 @@
 (ns clojure.test.check.clojure-test.assertions
   #?(:cljs (:require-macros [clojure.test.check.clojure-test.assertions.cljs]))
   (:require #?(:clj [clojure.test :as t]
-               :cljs [cljs.test :as t])))
+               :cljs [cljs.test :as t]
+               :cljrs [clojure.test :as t])))
 
 #?(:clj
    (defn test-context-stacktrace [st]
@@ -40,7 +41,8 @@
               :actual m}
              #?(:clj (file-and-line*
                        (test-context-stacktrace (.getStackTrace (Thread/currentThread))))
-                :cljs (t/file-and-line (js/Error.) 4))))))
+                :cljs (t/file-and-line (js/Error.) 4)
+                :cljrs {:file nil :line nil})))))
 
 (defn check?
   [_ form]

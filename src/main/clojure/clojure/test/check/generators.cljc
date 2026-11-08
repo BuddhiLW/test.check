@@ -12,7 +12,7 @@
                             char boolean byte bytes sequence
                             shuffle not-empty symbol namespace
                             set sorted-set uuid double let])
-  (:require [#?(:clj clojure.core :cljs cljs.core) :as core
+  (:require [#?(:clj clojure.core :cljs cljs.core :cljrs clojure.core) :as core
              #?@(:cljs [:include-macros true])]
             [clojure.string :as string]
             [clojure.test.check.random :as random]
@@ -267,7 +267,14 @@
 
      :cljs
      (long (Math/floor (+ lower (- (* factor (+ 1.0 upper))
-                                   (* factor lower)))))))
+                                   (* factor lower)))))
+
+     :cljrs
+     (core/let [width (-' upper lower -1)]
+       (if (< width Long/MAX_VALUE)
+         (+ lower (long (Math/floor (* factor width))))
+         ;; Clamp down to upper because double math.
+         (min upper (long (Math/floor (+ lower (* factor width)))))))))
 
 (defn- rand-range
   [rnd lower upper]
@@ -352,6 +359,13 @@
      the range `lower` to `upper`, inclusive.
 
          (gen/sample (gen/choose 200 800))
+         => (331 241 593 339 643 718 688 473 247 694)"
+
+     :cljrs
+     "Creates a generator that generates integers uniformly in the range
+     `lower` to `upper`, inclusive.
+
+         (gen/sample (gen/choose 200 800))
          => (331 241 593 339 643 718 688 473 247 694)")
   [lower upper]
   ;; cast to long to support doubles as arguments per TCHECK-73
@@ -360,7 +374,11 @@
                 upper (long upper)]
 
                :cljs ;; does nothing, no long in cljs
-               [])
+               []
+
+               :cljrs
+               [lower (long lower)
+                upper (long upper)])
     (make-gen
      (fn [rnd _size]
        (core/let [value (rand-range rnd lower upper)]
@@ -723,7 +741,9 @@
   #? (:clj
       (.contains ^clojure.lang.ITransientSet s k)
       :cljs
-      (some? (-lookup s k))))
+      (some? (-lookup s k))
+      :cljrs
+      (contains? s k)))
 
 (defn ^:private coll-distinct-by*
   "Returns a rose tree."
@@ -1021,18 +1041,18 @@
               (rose/pure (random/rand-long rnd)))))
 
 (def ^:private MAX_INTEGER
-  #?(:clj Long/MAX_VALUE :cljs (dec (apply * (repeat 53 2)))))
+  #?(:clj Long/MAX_VALUE :cljs (dec (apply * (repeat 53 2))) :cljrs Long/MAX_VALUE))
 (def ^:private MIN_INTEGER
-  #?(:clj Long/MIN_VALUE :cljs (- MAX_INTEGER)))
+  #?(:clj Long/MIN_VALUE :cljs (- MAX_INTEGER) :cljrs Long/MIN_VALUE))
 
 (defn ^:private abs
   [x]
-  #?(:clj (Math/abs (long x)) :cljs (Math/abs x)))
+  #?(:clj (Math/abs (long x)) :cljs (Math/abs x) :cljrs (Math/abs (long x))))
 
 (defn ^:private long->large-integer
   [bit-count x min max]
   (loop [res (-> x
-                 (#?(:clj bit-shift-right :cljs .shiftRight)
+                 (#?(:clj bit-shift-right :cljs .shiftRight :cljrs bit-shift-right)
                   (- 64 bit-count))
                  #?(:cljs .toNumber)
                  ;; so we don't get into an infinite loop bit-shifting
@@ -1048,14 +1068,15 @@
                     :cljs (-> res
                               (cond-> (odd? res)
                                 ((if (neg? res) inc dec)))
-                              (/ 2)))))))))
+                              (/ 2))
+                    :cljrs (bit-shift-right res 1))))))))
 
 (defn ^:private large-integer**
   "Like large-integer*, but assumes range includes zero."
   [min max]
   (sized (fn [size]
            (core/let [size (core/max size 1) ;; no need to worry about size=0
-                      max-bit-count (core/min size #?(:clj 64 :cljs 54))]
+                      max-bit-count (core/min size #?(:clj 64 :cljs 54 :cljrs 64))]
              (gen-fmap (fn [rose]
                          (core/let [[bit-count x] (rose/root rose)]
                            (int-rose-tree (long->large-integer bit-count x min max))))
@@ -1115,11 +1136,11 @@
 ;; Some of the lower level stuff could probably be less messy and
 ;; faster, especially for CLJS.
 
-(def ^:private POS_INFINITY #?(:clj Double/POSITIVE_INFINITY, :cljs (.-POSITIVE_INFINITY js/Number)))
-(def ^:private NEG_INFINITY #?(:clj Double/NEGATIVE_INFINITY, :cljs (.-NEGATIVE_INFINITY js/Number)))
-(def ^:private MAX_POS_VALUE #?(:clj Double/MAX_VALUE, :cljs (.-MAX_VALUE js/Number)))
+(def ^:private POS_INFINITY #?(:clj Double/POSITIVE_INFINITY, :cljs (.-POSITIVE_INFINITY js/Number), :cljrs ##Inf))
+(def ^:private NEG_INFINITY #?(:clj Double/NEGATIVE_INFINITY, :cljs (.-NEGATIVE_INFINITY js/Number), :cljrs ##-Inf))
+(def ^:private MAX_POS_VALUE #?(:clj Double/MAX_VALUE, :cljs (.-MAX_VALUE js/Number), :cljrs Double/MAX_VALUE))
 (def ^:private MIN_NEG_VALUE (- MAX_POS_VALUE))
-(def ^:private NAN #?(:clj Double/NaN, :cljs (.-NaN js/Number)))
+(def ^:private NAN #?(:clj Double/NaN, :cljs (.-NaN js/Number), :cljrs ##NaN))
 
 (defn ^:private uniform-integer
   "Generates an integer uniformly in the range 0..(2^bit-count-1)."
@@ -1136,14 +1157,18 @@
                 (-> upper (bit-shift-left 32) (+ lower))
 
                 :cljs
-                (-> upper (* 0x100000000) (+ lower))))
+                (-> upper (* 0x100000000) (+ lower))
+
+                :cljrs
+                (-> upper (bit-shift-left 32) (+ lower))))
           (tuple (uniform-integer (- bit-count 32))
                  (uniform-integer 32)))))
 
 (defn ^:private scalb
   [x exp]
   #?(:clj (Math/scalb ^double x ^int exp)
-     :cljs (* x (.pow js/Math 2 exp))))
+     :cljs (* x (.pow js/Math 2 exp))
+     :cljrs (Math/scalb (core/double x) (core/int exp))))
 
 (defn ^:private fifty-two-bit-reverse
   "Bit-reverses an integer in the range [0, 2^52)."
@@ -1159,7 +1184,10 @@
           (* out out-shifter)
           (recur (-> out (* 2) (+ (bit-and n 1)))
                  (/ n 2)
-                 (/ out-shifter 2))))))
+                 (/ out-shifter 2))))
+
+      :cljrs
+      (-> n (Long/reverse) (unsigned-bit-shift-right 12))))
 
 (def ^:private backwards-shrinking-significand
   "Generates a 52-bit non-negative integer that shrinks toward having
@@ -1186,7 +1214,10 @@
                    t (scalb x (- res))]
           (cond (< t 1) (dec res)
                 (<= 2 t) (inc res)
-                :else res)))))
+                :else res)))
+
+      :cljrs
+      (Math/getExponent (core/double x))))
 
 (defn ^:private double-exp-and-sign
   "Generates [exp sign], where exp is in [-1023, 1023] and sign is 1
@@ -1467,7 +1498,8 @@
 (defn- digit?
   [d]
   #?(:clj  (Character/isDigit ^Character d)
-     :cljs (gstring/isNumeric d)))
+     :cljs (gstring/isNumeric d)
+     :cljrs (Character/isDigit d)))
 
 (defn- +-or---digit?
   "Returns true if c is \\+ or \\- and d is non-nil and a digit.
@@ -1476,8 +1508,8 @@
   like numbers."
   [c d]
   (core/boolean (and d
-                     (or (#?(:clj = :cljs identical?) \+ c)
-                         (#?(:clj = :cljs identical?) \- c))
+                     (or (#?(:clj = :cljs identical? :cljrs =) \+ c)
+                         (#?(:clj = :cljs identical? :cljrs =) \- c))
                      (digit? d))))
 
 (def ^:private symbol-name-or-namespace
@@ -1562,6 +1594,25 @@
             (java.util.UUID. x1 x2)
             []))))
 
+      :cljrs
+      (make-gen
+       (fn [rng _size]
+         (core/let [[r1 r2] (random/split rng)
+                    x1 (-> (random/rand-long r1)
+                           (bit-and -45057)
+                           (bit-or 0x4000))
+                    x2 (-> (random/rand-long r2)
+                           (bit-or -9223372036854775808)
+                           (bit-and -4611686018427387905))
+                    hex (format "%016x%016x" x1 x2)]
+           (rose/make-rose
+            (parse-uuid (str (subs hex 0 8) "-"
+                             (subs hex 8 12) "-"
+                             (subs hex 12 16) "-"
+                             (subs hex 16 20) "-"
+                             (subs hex 20 32)))
+            []))))
+
       :cljs
       ;; this could definitely be optimized so that it doesn't require
       ;; generating 31 numbers
@@ -1580,7 +1631,7 @@
 
 (defn ^:private base-simple-type
   [double-gen char-gen string-gen]
-(one-of [int #?(:clj size-bounded-bigint :cljs large-integer) double-gen char-gen
+(one-of [int #?(:clj size-bounded-bigint :cljs large-integer :cljrs large-integer) double-gen char-gen
          string-gen ratio boolean keyword keyword-ns symbol symbol-ns uuid]))
 
 (def simple-type
@@ -1616,12 +1667,14 @@
   (one-of [(vector inner-type)
            (list inner-type)
            (set #?(:clj inner-type
-                   :cljs (such-that hashable? inner-type)))
+                   :cljs (such-that hashable? inner-type)
+                   :cljrs inner-type))
            ;; scaling this by half since it naturally generates twice
            ;; as many elements
            (scale #(quot % 2)
                   (map #?(:clj inner-type
-                          :cljs (such-that hashable? inner-type))
+                          :cljs (such-that hashable? inner-type)
+                          :cljrs inner-type)
                        inner-type))]))
 
 ;; A few helpers for recursive-gen
