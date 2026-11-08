@@ -7,14 +7,14 @@
   :source-paths ["src/main/clojure"]
   :test-paths ["src/test/clojure"]
   :jvm-opts ^:replace ["-Xmx512m" "-server"]
-  :profiles {:dev {:dependencies [[org.clojure/clojure "1.10.1"]
+  :profiles {:dev {:dependencies [[org.clojure/clojure "1.11.4"]
                                   [org.clojure/clojurescript "1.10.520"]]}
              :self-host {:dependencies [[org.clojure/clojure "1.10.1"]
                                         [org.clojure/clojurescript "1.10.520"]]
                          :main clojure.main
                          :global-vars {*warn-on-reflection* false}}}
   :global-vars {*warn-on-reflection* true}
-  :plugins [[lein-codox "0.10.7"]
+  :plugins [[lein-codox "0.10.8"]
             [lein-cljsbuild "1.1.5"]]
   ;; To generate codox files (which are hosted on the gh-pages branch)
   ;; for a release:

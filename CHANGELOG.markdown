@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.1.3 (2025-12-30)
+
+* Update parent pom and Clojure dep to 1.11.4
+
+## 1.1.2 (2025-11-25)
+
+* TCHECK-160 - Reduce allocation churn on shrink-int
+
+## 1.1.1 (2021-12-01)
+
+* Exclude clojure.core/abs (prepping for use with 1.11)
+
 ## 1.1.0 (2020-07-10)
 
 * TCHECK-155 - don't generate :/ for keywords
